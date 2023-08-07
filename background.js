@@ -6,20 +6,31 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === "checkForVirus") {
     const url = info.linkUrl;
-    const scanData = await getScanReport(url);
-    console.log(scanData);
-    const analysisData = await getAnalysisReport(scanData.id);
-    console.log(analysisData);
+    getScanReport(url)
+      .then((scanData) => {
+        console.log(scanData);
+        return getAnalysisReport(scanData.id);
+      })
+      .then((analysisData) => {
+        const options = getNotificationOptions(analysisData);
+        self.registration.showNotification(options.title, {
+          body: options.message,
+          icon: options.iconUrl,
+        });
+      })
+      .catch((error) => {
+        console.error(error);
+      });
   }
 });
 
-const getScanReport = async (link) => {
+const getScanReport = (link) => {
   const url = encodeURIComponent(link);
-  return await fetch(
-    `https://extension-checkvt-m7b2i77ilq-lm.a.run.app/scan?url=${url})}`
+  return fetch(
+    `https://extension-checkvt-m7b2i77ilq-lm.a.run.app/scan?url=${url}`
   )
     .then((res) => {
       if (!res.ok) {
@@ -28,13 +39,14 @@ const getScanReport = async (link) => {
       return res.json();
     })
     .then((data) => data.data)
-    .catch((error) => console.error("Error:", error));
+    .catch((error) => {
+      console.error("Error:", error);
+      return error;
+    });
 };
 
-const getAnalysisReport = async (id) => {
-  return await fetch(
-    `https://extension-checkvt-m7b2i77ilq-lm.a.run.app/report/${id}`
-  )
+const getAnalysisReport = (id) => {
+  return fetch(`https://extension-checkvt-m7b2i77ilq-lm.a.run.app/report/${id}`)
     .then((res) => {
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
@@ -42,5 +54,35 @@ const getAnalysisReport = async (id) => {
       return res.json();
     })
     .then((data) => data)
-    .catch((error) => console.error("Error: ", error));
+    .catch((error) => {
+      console.error("Error:", error);
+      return error;
+    });
+};
+
+const getNotificationOptions = (data) => {
+  const stats = data.data.attributes.stats;
+  console.log(stats);
+  const message = `Harmless: ${stats.harmless} | Malicious: ${stats.malicious} | Suspicious: ${stats.suspicious} | Undetected: ${stats.undetected}`;
+  let title;
+  let iconUrl;
+  if (stats.malicious) {
+    iconUrl = "warning.png";
+    title = "Malicious link detected";
+  } else if (stats.suspicious) {
+    iconUrl = "sus.webp";
+    title = "Suspicious link detected";
+  } else if (stats.harmless) {
+    iconUrl = "checked.png";
+    title = "Harmless link detected";
+  } else {
+    iconUrl = "undetected.png";
+    title = "Unknown threats";
+  }
+
+  return {
+    iconUrl: iconUrl,
+    title: title,
+    message: message,
+  };
 };

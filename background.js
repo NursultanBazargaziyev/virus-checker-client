@@ -26,6 +26,21 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       });
   }
 });
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  getScanReport(request.url)
+    .then((scanData) => {
+      return getAnalysisReport(scanData.id);
+    })
+    .then((analysisData) => {
+      sendResponse(analysisData);
+    })
+    .catch((error) => {
+      console.error(error);
+      sendResponse({ error: error.toString() });
+    });
+
+  return true;
+});
 
 const getScanReport = (link) => {
   const url = encodeURIComponent(link);
@@ -67,16 +82,16 @@ const getNotificationOptions = (data) => {
   let title;
   let iconUrl;
   if (stats.malicious) {
-    iconUrl = "warning.png";
+    iconUrl = "img/warning.png";
     title = "Malicious link detected";
   } else if (stats.suspicious) {
-    iconUrl = "sus.webp";
+    iconUrl = "img/sus.webp";
     title = "Suspicious link detected";
   } else if (stats.harmless) {
-    iconUrl = "checked.png";
+    iconUrl = "img/checked.png";
     title = "Harmless link detected";
   } else {
-    iconUrl = "undetected.png";
+    iconUrl = "img/undetected.png";
     title = "Unknown threats";
   }
 
